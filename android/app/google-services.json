@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "634549873296",
+    "project_id": "mrsneakers-996f3",
+    "storage_bucket": "mrsneakers-996f3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:634549873296:android:4ca60132b5ab48bbe34615",
+        "android_client_info": {
+          "package_name": "com.example.mrsneakersapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDcsofHLBtTj0pnLA5Wr7qTX2NMwdKAWOk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
