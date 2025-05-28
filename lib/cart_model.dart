@@ -1,37 +1,57 @@
-// cart_model.dart
-
 class CartModel {
-  final String productId;
+  final String productId; // Nuevo campo para identificar el producto
   final String image;
   final String name;
-  final double price;
   final String size;
-  final int? quantity; // Agregamos quantity como nullable
+  final double price;
+  final int quantity; // Cambiado de nullable a requerido
+  final String? description;
+  final bool? available;
+  final int? stock;
+  final List<String>? sizes;
 
   CartModel({
-    required this.productId,
+    required this.productId, // Añadido
     required this.image,
     required this.name,
-    required this.price,
     required this.size,
-    this.quantity, // quantity es opcional
+    required this.price,
+    this.quantity = 1, // Valor por defecto
+    this.description,
+    this.available,
+    this.stock,
+    this.sizes,
   });
 
-  // Método para obtener la cantidad a comprar con valor por defecto
-  int get quantityToBuy => quantity ?? 1;
-}
+  // Método para convertir a Map (para Firestore)
+  Map<String, dynamic> toMap() {
+    return {
+      'productId': productId,
+      'image': image,
+      'name': name,
+      'size': size,
+      'price': price,
+      'quantity': quantity,
+      'description': description,
+      'available': available,
+      'stock': stock,
+      'sizes': sizes,
+    };
+  }
 
-class CartItem {
-  final String productName;
-  final int? quantity; // Cambiamos a nullable para consistencia
-  final String imagePath;
-
-  CartItem({
-    required this.productName,
-    this.quantity, // quantity es opcional
-    required this.imagePath,
-  });
-
-  // Método para obtener la cantidad a comprar con valor por defecto
-  int get quantityToBuy => quantity ?? 1;
+  // Método para crear desde Map
+  factory CartModel.fromMap(Map<String, dynamic> map) {
+    return CartModel(
+      productId: map['productId'] ?? '',
+      image: map['image'] ?? '',
+      name: map['name'] ?? '',
+      size: map['size'] ?? '',
+      price: map['price']?.toDouble() ?? 0.0,
+      quantity: map['quantity']?.toInt() ?? 1,
+      description: map['description'],
+      available: map['available'],
+      stock: map['stock']?.toInt(),
+      sizes: map['sizes'] != null ? List<String>.from(map['sizes']) : null,
+    );
+  }
 }

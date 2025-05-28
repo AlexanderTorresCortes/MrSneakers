@@ -42,6 +42,8 @@ dependencies:
   firebase_auth: ^4.9.0   # Para autenticación con Firebase
   google_sign_in: ^6.1.1
   cached_network_image: ^3.2.3 
+  shared_preferences: ^2.2.2
+  provider: ^6.1.1
 
 
 

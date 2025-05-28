@@ -97,10 +97,83 @@ class SplashScreen extends StatelessWidget {
 }
 
 // ------------------------ LOGIN Y REGISTRO ------------------------
+class LoginScreen extends StatefulWidget {
+  @override
+  _LoginScreenState createState() => _LoginScreenState();
+}
 
-class LoginScreen extends StatelessWidget {
+class _LoginScreenState extends State<LoginScreen> {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final TextEditingController userController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+  bool _isLoading = false;
+
+  Future<void> _loginUser(BuildContext context) async {
+    // Validar campos no vacíos
+    if (userController.text.isEmpty || passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor, complete todos los campos')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Buscar usuario por email o nombre de usuario
+      QuerySnapshot userQuery =
+          await _firestore
+              .collection('users')
+              .where('email', isEqualTo: userController.text)
+              .get();
+
+      // Si no encontró por email, buscar por usuario
+      if (userQuery.docs.isEmpty) {
+        userQuery =
+            await _firestore
+                .collection('users')
+                .where('usuario', isEqualTo: userController.text)
+                .get();
+      }
+
+      if (userQuery.docs.isEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Usuario no encontrado')));
+        return;
+      }
+
+      // Verificar contraseña
+      var userData = userQuery.docs.first.data() as Map<String, dynamic>;
+      if (userData['contraseña'] == passwordController.text) {
+        // Login exitoso
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('¡Bienvenido!')));
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => HomeScreen(userEmail: userData['email']),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Contraseña incorrecta')));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al iniciar sesión: ${e.toString()}')),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -125,7 +198,7 @@ class LoginScreen extends StatelessWidget {
               TextField(
                 controller: userController,
                 decoration: InputDecoration(
-                  hintText: 'Usuario',
+                  hintText: 'Usuario o Email',
                   border: OutlineInputBorder(),
                   contentPadding: EdgeInsets.symmetric(
                     horizontal: 15,
@@ -152,14 +225,29 @@ class LoginScreen extends StatelessWidget {
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     padding: EdgeInsets.symmetric(vertical: 15),
-                  ), // Este paréntesis estaba faltando
-                  onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (_) => HomeScreen()),
-                    );
-                  },
-                  child: Text('Ingresar'),
+                    backgroundColor: Colors.black,
+                  ),
+                  onPressed: _isLoading ? null : () => _loginUser(context),
+                  child:
+                      _isLoading
+                          ? CircularProgressIndicator(color: Colors.white)
+                          : Text(
+                            'Ingresar',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                ),
+              ),
+              SizedBox(height: 20),
+              TextButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => RegisterScreen()),
+                  );
+                },
+                child: Text(
+                  '¿No tienes cuenta? Regístrate',
+                  style: TextStyle(color: Colors.blue),
                 ),
               ),
             ],
@@ -363,6 +451,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
 // --------------------------- HOME ---------------------------
 class HomeScreen extends StatefulWidget {
+  final String userEmail; // Parámetro para recibir el email del usuario
+
+  const HomeScreen({super.key, required this.userEmail});
+
   @override
   _HomeScreenState createState() => _HomeScreenState();
 }
@@ -648,10 +740,10 @@ class _HomeScreenState extends State<HomeScreen> {
         return CartScreen(
           cartItems: cartItems,
           onConfirm: clearCartAfterPayment,
-          onRemoveItem: onRemoveFromCart, // Add this line
+          onRemoveItem: onRemoveFromCart,
           onAddToCart:
               (image, name, price, size) =>
-                  onAddToCart(image, name, price, size), // Add this line
+                  onAddToCart(image, name, price, size),
         );
       case 2:
         return deliveryAddress != null
@@ -745,7 +837,8 @@ class _HomeScreenState extends State<HomeScreen> {
             )
             : Center(child: Text('No hay pedidos recientes'));
       case 3:
-        return ProfileScreen();
+        // Aquí pasamos el userEmail al ProfileScreen
+        return ProfileScreen(userEmail: widget.userEmail);
       default:
         return Center(child: Text('Sección no implementada'));
     }
@@ -2193,12 +2286,92 @@ class ExpiryDateFormatter extends TextInputFormatter {
 // Si no lo tiene, agrégalo o modifica la lógica según tu estructura
 
 // ------------------------- PERFIL -------------------------
+class ProfileScreen extends StatefulWidget {
+  final String userEmail; // Email del usuario para obtener sus datos
 
-class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key});
+  const ProfileScreen({super.key, required this.userEmail});
+
+  @override
+  _ProfileScreenState createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  Map<String, dynamic>? userData;
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      DocumentSnapshot userDoc =
+          await _firestore.collection('users').doc(widget.userEmail).get();
+
+      if (userDoc.exists) {
+        setState(() {
+          userData = userDoc.data() as Map<String, dynamic>;
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error al cargar datos del usuario: $e');
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  String _formatDate(dynamic timestamp) {
+    if (timestamp == null) return 'No disponible';
+
+    try {
+      DateTime date = timestamp.toDate();
+      return '${date.day}/${date.month}/${date.year}';
+    } catch (e) {
+      return 'No disponible';
+    }
+  }
+
+  String _getFullName() {
+    if (userData == null) return '';
+
+    String nombres = userData!['nombres'] ?? '';
+    String apellidoPaterno = userData!['apellido_paterno'] ?? '';
+    String apellidoMaterno = userData!['apellido_materno'] ?? '';
+
+    return '$nombres $apellidoPaterno $apellidoMaterno'.trim();
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    if (userData == null) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline, size: 64, color: Colors.red),
+              SizedBox(height: 16),
+              Text('Error al cargar los datos del usuario'),
+              SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _loadUserData,
+                child: Text('Reintentar'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -2226,6 +2399,10 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Widget _buildProfileHeader() {
+    String fullName = _getFullName();
+    String username = userData!['usuario'] ?? '';
+    String email = userData!['email'] ?? '';
+
     return Center(
       child: Column(
         children: [
@@ -2239,28 +2416,26 @@ class ProfileScreen extends StatelessWidget {
               border: Border.all(color: Colors.blue.shade100, width: 3),
               image: DecorationImage(
                 image: NetworkImage(
-                  'https://ui-avatars.com/api/?name=${UserData().username}&background=random',
+                  'https://ui-avatars.com/api/?name=${Uri.encodeComponent(fullName.isEmpty ? username : fullName)}&background=random&color=fff',
                 ),
                 fit: BoxFit.cover,
               ),
             ),
           ),
           const SizedBox(height: 15),
-          // Nombre de usuario
+          // Nombre completo
           Text(
-            UserData().username,
+            fullName.isEmpty ? username : fullName,
             style: const TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
               color: Colors.black87,
             ),
+            textAlign: TextAlign.center,
           ),
           const SizedBox(height: 5),
           // Correo electrónico
-          Text(
-            UserData().email,
-            style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-          ),
+          Text(email, style: TextStyle(fontSize: 16, color: Colors.grey[600])),
         ],
       ),
     );
@@ -2286,17 +2461,26 @@ class ProfileScreen extends StatelessWidget {
             const SizedBox(height: 12),
             _buildInfoTile(
               Icons.person_outline,
-              'Usuario',
-              UserData().username,
+              'Nombre completo',
+              _getFullName(),
             ),
             const Divider(height: 1),
-            _buildInfoTile(Icons.email_outlined, 'Correo', UserData().email),
+            _buildInfoTile(
+              Icons.account_circle_outlined,
+              'Usuario',
+              userData!['usuario'] ?? '',
+            ),
             const Divider(height: 1),
             _buildInfoTile(
-              Icons.lock_outline,
-              'Contraseña',
-              '••••••••',
-              isPassword: true,
+              Icons.email_outlined,
+              'Correo',
+              userData!['email'] ?? '',
+            ),
+            const Divider(height: 1),
+            _buildInfoTile(
+              Icons.calendar_today_outlined,
+              'Fecha de registro',
+              _formatDate(userData!['fecha_registro']),
             ),
           ],
         ),
@@ -2333,29 +2517,27 @@ class ProfileScreen extends StatelessWidget {
               '¿Cómo cambiar la contraseña?',
               Icons.lock_reset_outlined,
             ),
+            const Divider(height: 1),
+            _buildHelpItem('Editar perfil', Icons.edit_outlined),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildInfoTile(
-    IconData icon,
-    String title,
-    String value, {
-    bool isPassword = false,
-  }) {
+  Widget _buildInfoTile(IconData icon, String title, String value) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: Icon(icon, color: Colors.blue),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-      trailing: Text(
-        isPassword ? '••••••••' : value,
-        style: TextStyle(color: Colors.grey[600]),
+      trailing: Expanded(
+        child: Text(
+          value.isEmpty ? 'No disponible' : value,
+          style: TextStyle(color: Colors.grey[600]),
+          textAlign: TextAlign.right,
+          overflow: TextOverflow.ellipsis,
+        ),
       ),
-      onTap: () {
-        // Aquí podrías añadir funcionalidad para editar cada campo
-      },
     );
   }
 
@@ -2367,7 +2549,17 @@ class ProfileScreen extends StatelessWidget {
       trailing: const Icon(Icons.chevron_right, color: Colors.grey),
       onTap: () {
         // Navegar a pantalla de ayuda específica
+        if (title == 'Editar perfil') {
+          _navigateToEditProfile();
+        }
       },
+    );
+  }
+
+  void _navigateToEditProfile() {
+    // Aquí puedes navegar a una pantalla de edición de perfil
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Función de editar perfil próximamente')),
     );
   }
 
